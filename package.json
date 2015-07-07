@@ -31,5 +31,5 @@
     "url": "git://github.com/superchromat/ocs-sdk-js.git" 
   },
   "private": true,
-  "main": "src/ProductApi.js",
+  "main": "src/ProductApi.js"
 }
