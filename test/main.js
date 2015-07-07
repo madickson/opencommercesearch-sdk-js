@@ -68,7 +68,7 @@ describe('helpers.buildRequest', function() {
             ),
             expected = {
                 method: 'GET',
-                url: '//api.backcountry.com/v1/testEndpoint/foo',
+                url: 'http://api.backcountry.com/v1/testEndpoint/foo',
                 params: {
                     site: 'bcs', productId: 'foo', fields: 'id,title,brand'
                 }

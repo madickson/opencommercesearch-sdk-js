@@ -160,7 +160,8 @@ module.exports = function ProductApi(params) {
                 throw moduleName + 'request for ' + endpoint.tpl + ' needs a site';
             }
 
-            var url = '//' + settings.host + '/v' + settings.version + this.template(endpoint.tpl, requestParams);
+            var protocol = settings.isServer ? 'http:' : '',
+                url = protocol + '//' + settings.host + '/v' + settings.version + this.template(endpoint.tpl, requestParams);
 
             return {
                 method: endpoint.method || 'GET',
