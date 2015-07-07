@@ -28,7 +28,7 @@ module.exports = function ProductApi(params) {
     // id placeholders
     var brandId =    '/{{brandId}}',
         categoryId = '/{{categoryId}}',
-        id =         '/{{id}}',
+        itemId =         '/{{itemId}}',
         productId =  '/{{productId}}',
         queryId =    '{{q}}';
 
@@ -291,17 +291,17 @@ module.exports = function ProductApi(params) {
 
     // rules
     setEndpoint('findRules', {
-        tpl: ruleRoute + id
+        tpl: ruleRoute + itemId
     });
 
     // facets
     setEndpoint('findFacets', {
-        tpl: facetRoute + id
+        tpl: facetRoute + itemId
     });
 
     setEndpoint('createFacet', {
         method: 'PUT',
-        tpl: facetRoute + id
+        tpl: facetRoute + itemId
     });
 
     return api;
