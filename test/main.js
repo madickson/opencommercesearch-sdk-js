@@ -4,176 +4,126 @@ var sinon = require('sinon');
 var ProductApi = require('../ProductApi');
 
 
-// globals
-var productApi,
-    fakeServer,
-    defaultSettings;
-
-
 // setup
 beforeEach(function() {
-    defaultSettings = {
+    var defaultSettings = {
         debug: true,
         host: 'api.backcountry.com',
         preview: false,
         site: 'bcs'
     };
 
-    productApi = new ProductApi(defaultSettings);
+    ProductApi.config(defaultSettings);
 });
 
 
-// the tests   
-describe('create', function() {
-    it('should throw exception if wrong settings are passed', function() {
-        var noSettings = function() { ProductApi(); },
-            wrongSettings = function() { ProductApi(''); },
-            emptySettings = function() { ProductApi({}); },
-            noSite = function() { ProductApi({ host: defaultSettings.host }); },
-            noHost = function() { ProductApi({ site: defaultSettings.debug }); };
-
-        assert.throws(noSettings, 'no settings did not throw an exception');
-        assert.throws(wrongSettings, 'wrong settings type did not throw an exception');
-        assert.throws(emptySettings, 'empty settings object did not throw an exception');
-        assert.throws(noSite, 'empty site did not throw an exception');
-        assert.throws(noHost, 'empty host did not throw an exception');
-    });
-
-    it('should set the config based on the settings passed', function() {
-        var settings = {
-                debug: true,
-                host: 'a host',
-                isServer: 'is it on the server',
-                site: 'a site',
-                version: 999,
-                preview: 'is it preview env'
-            },
-            api = new ProductApi(settings),
-            config = api.helpers.getConfig();
-
-        assert.equal(config.site, settings.site, 'site was not set correctly');
-        assert.equal(config.host, settings.host, 'host was not set correctly');
-        assert.equal(config.isServer, settings.isServer, 'isServer was not set correctly');
-        assert.equal(config.version, settings.version, 'version was not set correctly');
-        assert.equal(config.preview, settings.preview, 'preview was not set correctly');
-    });
-
-    it('should set the default config when settings are not explicit', function() {
-        var defaults = {
-                isServer: true,
-                preview: false,
-                version: 1
-            },
-            api = new ProductApi(defaultSettings),
-            config = api.helpers.getConfig();
-
-        assert.equal(config.isServer, defaults.isServer, 'isServer was not set correctly');
-        assert.equal(config.preview, defaults.preview, 'preview was not set correctly');
-        assert.equal(config.version, defaults.version, 'version was not set correctly');
-    });
-
+// the tests
+describe('core', function() {
     it('should return helpers when debug is true', function() {
-        var api = new ProductApi(defaultSettings);
-
-        assert(api.helpers, 'helpers were not returned');
+        assert(ProductApi.helpers, 'helper methods were returned');
     });
 
-    it('should not return helpers or setEndpoint when debug is false', function() {
-        defaultSettings.debug = false;
-        var api = new ProductApi(defaultSettings);
-
-        assert(!api.setEndpoint, 'setEndpoint was returned');
-        assert(!api.helpers, 'helpers were returned');
+    it('should not return helpers when debug is false', function() {
+        ProductApi.config({ debug: false });
+        assert(!ProductApi.helpers, 'helper methods were not returned');
     });
 
-    it('should return 21 endpoints', function() {
-        defaultSettings.debug = false;
-        var api = new ProductApi(defaultSettings);
-
-        assert.equal(_.size(api), 21, 'all endpoints were returned');
+    it('should return 25 properties', function() {
+        assert.equal(_.size(ProductApi), 25, 'all properties were returned');
     });
 });
 
 describe('helpers.template', function() {
     it('should replace tpl keys with the specified data', function() {
-        var tpl = '/some/endpoint/{{key1}}/and/{{key2}}';
-            result = productApi.helpers.template(tpl, { key1: 'foo', key2: 'bar' });
+        var tpl = '/some/endpoint/{{productId}}/and/{{query}}';
+            result = ProductApi.helpers.template(tpl, { productId: 'foo', query: 'bar' });
 
         assert.equal(result, '/some/endpoint/foo/and/bar', 'template keys were not replaced');
     });
 });
 
 describe('helpers.buildOptions', function() {
-    var optStatic = {
-            site: 'bcs',
-            preview: false
-        },
-        optDefault = {
-            a: 'foo',
-            b: 'foo'
-        },
-        optCustom = {
-            a: 'bar',
-            b: 'baz'
-        },
-        defaultExpected = _.extend(_.clone(optStatic), optDefault),
-        customExpected = _.extend(_.clone(optStatic), optCustom);
-
-    it('should return generic options when none are passed', function() {
-        var actual = productApi.helpers.buildOptions({}, {});
-        assert.deepEqual(actual, optStatic, 'default options not returned');
-    });
+    var optDefault = { a: 'foo', b: 'foo' },
+        optCustom = { a: 'bar', b: 'baz', c: 'foo' };
 
     it('should return default options when defaults are passed', function() {
-        var actual = productApi.helpers.buildOptions(optDefault, {});
-        assert.deepEqual(actual, defaultExpected, 'custom options not returned');
+        var actual = ProductApi.helpers.buildOptions(optDefault, {});
+        assert.deepEqual(actual, optDefault, 'custom options not returned');
     });
 
     it('should override default options when custom values are passed', function() {
-        var actual = productApi.helpers.buildOptions(optDefault, optCustom);
-        assert.deepEqual(actual, customExpected, 'custom options not returned');
+        var actual = ProductApi.helpers.buildOptions(optDefault, optCustom);
+        assert.deepEqual(actual, optCustom, 'custom options not returned');
     });
 });
 
-describe('helpers.getConfig', function() {
+describe('helpers.buildRequest', function() {
+    it('should generate the correct method/url/params then callApi', function() {
+        var actual = ProductApi.helpers.buildRequest(
+                //endpoint
+                { tpl: '/testEndpoint/{{productId}}' },
+                // request
+                { site: 'bcs', productId: 'foo', fields: 'id,title,brand' }
+                // options
+            ),
+            expected = {
+                method: 'GET',
+                url: '//api.backcountry.com/v1/testEndpoint/foo',
+                params: {
+                    site: 'bcs', productId: 'foo', fields: 'id,title,brand'
+                }
+            };
+
+        assert.deepEqual(actual, expected, 'returned correct data');
+    });
+});
+
+describe('helpers.apiCall', function() {
+    it('should return a promise object', function() {
+        var apiCall = ProductApi.helpers.apiCall({
+            method: 'GET',
+            url: '//api.backcountry.com/v1/testEndpoint/foo',
+            params: {
+                site: 'bcs', productId: 'foo', fields: 'id,title,brand'
+            }
+        });
+
+        assert(!!apiCall.then && !!apiCall.done && !!apiCall.fail, 'is not a promise');
+    });
+
+    it('should have additional mocked async tests');
+});
+
+describe('getConfig', function() {
     it('should return the config object', function() {
-        var config = productApi.helpers.getConfig();
+        var config = ProductApi.getConfig();
 
         assert(_.isObject(config), 'config object returned');
         assert.deepEqual(_.keys(config), ['debug','host','isServer','preview','site','version'], 'config keys match');
     });
 });
 
-describe('helpers.processRequest', function() {
-    it('should generate the correct method/url/params then callApi', function() {
-        var apiCall = sinon.stub(productApi.helpers, 'apiCall');
+describe('config', function() {
+    it('should change the config settings', function() {
+        var newSettings = {
+            debug: false,
+            isServer: false,
+            preview: true,
+            version: 44,
+            host: 'a host',
+            site: 'a site'
+        };
 
-        productApi.helpers.processRequest(
-            //endpoint
-            { tpl: '/testEndpoint/{{id}}' },
-            // request
-            { id: 'foo' },
-            // options
-            { fields: 'id,title,brand' }
-        );
+        ProductApi.config(newSettings);
+        var config = ProductApi.getConfig();
 
-        assert(apiCall.called, 'callApi method was not called');
-        assert(apiCall.calledWith('GET', '//api.backcountry.com/v1/testEndpoint/foo', { site: 'bcs', preview: false, fields: 'id,title,brand'}), 'callApi method was not called');
-        productApi.helpers.apiCall.restore();
+        assert.equal(config.isServer, newSettings.isServer, 'isServer is correct');
+        assert.equal(config.preview, newSettings.preview, 'preview is correct');
+        assert.equal(config.version, newSettings.version, 'version is correct');
+        assert.equal(config.debug, newSettings.debug, 'debug is correct');
+        assert.equal(config.host, newSettings.host, 'host is correct');
+        assert.equal(config.site, newSettings.site, 'site is correct');
     });
-});
-
-describe('helpers.apiCall', function() {
-    it('should return a promise object', function() {
-        var apiCall = productApi.helpers.apiCall('GET', '//api.backcountry.com/200', {
-            site: 'bcs',
-            preview: false
-        });
-
-        assert(!!apiCall.then && !!apiCall.done && !!apiCall.fail, 'is not a promise');
-    });
-
-    it('should work');
 });
 
 describe('setEndpoint', function() {
@@ -187,34 +137,34 @@ describe('setEndpoint', function() {
         };
 
     it('should add a new endpoint method', function() {
-        productApi.setEndpoint(name, endpoint);
-        assert(_.isFunction(productApi[name]), 'new endpoint "' + name + '" was created');
+        ProductApi.setEndpoint(name, endpoint);
+        assert(_.isFunction(ProductApi[name]), 'new endpoint "' + name + '" was created');
+        delete ProductApi[name];
     });
 
-    it('should call processRequest and apiCall when used', function() {
-        var apiCall = sinon.stub(productApi.helpers, 'apiCall'),
-            processRequest = sinon.spy(productApi.helpers, 'processRequest'),
-            requestData = { id: 'bar' },
+    it('should call buildRequest and apiCall when used', function() {
+        var apiCall = sinon.stub(ProductApi.helpers, 'apiCall'),
+            buildRequest = sinon.spy(ProductApi.helpers, 'buildRequest'),
+            requestData = { id: 'bar', site: 'bcs' },
             requestOptions = { foo: 'bar' };
 
-        productApi.setEndpoint(name, endpoint);
-        productApi[name](requestData, _.clone(requestOptions));
+        ProductApi.setEndpoint(name, endpoint);
+        ProductApi[name](requestData, _.clone(requestOptions));
 
-        assert(processRequest.called, 'processRequest was called');
-        assert.deepEqual(processRequest.firstCall.args[0], endpoint, 'processRequest endpoint is correct');
-        assert.deepEqual(processRequest.firstCall.args[1], requestData, 'processRequest data is correct');
-        assert.deepEqual(processRequest.firstCall.args[2].foo, 'bar', 'processRequest custom params was added');
+        assert(buildRequest.called, 'buildRequest was called');
+        assert.deepEqual(buildRequest.firstCall.args[0], endpoint, 'buildRequest endpoint is correct');
+        assert.deepEqual(buildRequest.firstCall.args[1], requestData, 'buildRequest data is correct');
+        assert.deepEqual(buildRequest.firstCall.args[2].foo, 'bar', 'buildRequest custom params was added');
 
-        productApi.helpers.apiCall.restore();
-        productApi.helpers.processRequest.restore();
+        ProductApi.helpers.apiCall.restore();
+        ProductApi.helpers.buildRequest.restore();
+        delete ProductApi[name];
     });
 
     it('should not let you overwrite an existing endpoint', function() {
-        defaultSettings.debug = false;
-        var api = new ProductApi(defaultSettings),
-            existingEndpoint = _.first(_.keys(api)),
+        var existingEndpoint = 'searchProducts',
             setExistingEndpoint = function() {
-                productApi.setEndpoint(existingEndpoint, { tpl: 'template' });
+                ProductApi.setEndpoint(existingEndpoint, { tpl: 'template' });
             };
 
         assert.throws(setExistingEndpoint, 'cant overwrite an existing endpoint');

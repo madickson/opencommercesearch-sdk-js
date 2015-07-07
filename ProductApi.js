@@ -1,35 +1,18 @@
 var q = require('q');
 var request = require('superagent');
 
-/*
- * @return ProductApi
- *
- * @param settings - required object to configure the module
- * @param settings.host - host domain to use
- * @param settings.isServer - running on server or client
- * @param settings.preview - preview environment
- * @param settings.site - site code (aplha not numeric)
- * @param settings.version - api version
- */
-module.exports = function ProductApi(settings) {
-    var self = this,
+module.exports = function ProductApi(params) {
+    var api = {},
         moduleName = '[ProductApi] ';
 
-    if (typeof settings !== 'object') {
-        throw moduleName + 'must be initialized with a settings object';
-    }
-
-    if (!settings.host || !settings.site) {
-        throw moduleName + 'missing required properties for host and/or site';
-    }
-
-    var config = {
-        debug: settings.debug || false,
-        host: settings.host,
-        isServer: settings.isServer || typeof window === 'undefined',
-        preview: settings.preview || false,
-        site: settings.site,
-        version: settings.version || 1
+    // default settings
+    var settings = {
+        debug: false,
+        host: '',
+        isServer: true,
+        preview: false,
+        site: '',
+        version: 1
     };
 
     // routes
@@ -41,27 +24,66 @@ module.exports = function ProductApi(settings) {
         queriesRoute = '/queries',
         ruleRoute =    '/rules',
         suggestRoute = '/suggestions';
-    
+
     // id placeholders
     var brandId =    '/{{brandId}}',
         categoryId = '/{{categoryId}}',
         id =         '/{{id}}',
         productId =  '/{{productId}}',
-        queryId =    '{{query}}';
+        queryId =    '{{q}}';
+
+
+    // change config after init
+    api.config = function(config) {
+        for (var key in config) {
+          settings[key] = config[key];
+        }
+
+        if (settings.debug && !api.helpers) {
+            api.helpers = helpers;
+        } else if (!settings.debug) {
+            delete api.helpers;
+        }
+    };
+
+    api.getConfig = function() {
+        return settings;
+    };
+
+    // generic endpoint constructor
+    var setEndpoint = api.setEndpoint = function(name, endpoint, override) {
+        if (!endpoint && !endpoint.tpl) {
+            throw moduleName + 'endpoint needs a template';
+        }
+
+        if (!api[name] || override) {
+            api[name] = function(request, options) {
+                var request = helpers.buildRequest(endpoint, request, options);
+
+                return helpers.apiCall(request);
+            };
+            return true;
+        } else {
+            throw moduleName + 'endpoint ' + name + ' already exists';
+        }
+    };
 
     // helper methods
     var helpers = {
-        apiCall: function(method, url, params) {
-            var corsRetry = !config.isServer,
+        apiCall: function(requestData) {
+            var method = requestData.method,
+                url = requestData.url,
+                params = requestData.params,
+                corsRetry = !settings.isServer,
                 deferred = q.defer(),
                 isGet = method.toLowerCase() === 'get',
                 dataMethod = isGet ? 'query' : 'send',
                 msg;
 
-            if (!config.isServer && !isGet) {
+            if (!settings.isServer && !isGet) {
                 msg = 'client only supports GET methods';
                 deferred.reject('Error: ' + msg);
-                if (config.debug) {
+                if (settings.debug) {
                     console.warn(moduleName + msg);
                 }
                 return deferred.promise;
@@ -72,12 +94,12 @@ module.exports = function ProductApi(settings) {
                     paramString,
                     xdr;
 
-                if (config.isServer || !window.XDomainRequest) {
+                if (settings.isServer || !window.XDomainRequest) {
                     request(method, url)[dataMethod](params)
                         .end(function(err, res) {
                             if (corsRetry && err) {
                                 corsRetry = false;
-                                url = url.replace(config.host, '');
+                                url = url.replace(settings.host, '');
 
                                 return ajax(this);
                             } else if (err) {
@@ -103,7 +125,7 @@ module.exports = function ProductApi(settings) {
                     xdr.onerror = function(jqXHR, textStatus, errorThrown) {
                         if (corsRetry) {
                             corsRetry = false;
-                            url = url.replace(config.host, '');
+                            url = url.replace(settings.host, '');
                             return ajax(this);
                         } else {
                             deferred.reject(errorThrown);
@@ -119,8 +141,6 @@ module.exports = function ProductApi(settings) {
         },
         buildOptions: function(defaults, options) {
             options = typeof options === 'object' ? options : {};
-            options.site = config.site;
-            options.preview = config.preview;
 
             for (var key in defaults) {
                 options[key] = options[key] || defaults[key];
@@ -128,58 +148,46 @@ module.exports = function ProductApi(settings) {
 
             return options;
         },
-        getConfig: function() {
-            return config;
+        getSettings: function() {
+            return settings;
         },
-        processRequest: function(endpoint, request, options) {
-            if (typeof request !== 'object') {
+        buildRequest: function(endpoint, requestParams) {
+            if (typeof requestParams !== 'object') {
                 throw moduleName + 'request for ' + endpoint.tpl + ' must be an object';
             }
 
-            var params = helpers.buildOptions(endpoint.opt, options),
-                url = '//' + config.host + '/v' + config.version + this.template(endpoint.tpl, request),
-                method = endpoint.method || 'GET';
+            if (!requestParams.site) {
+                throw moduleName + 'request for ' + endpoint.tpl + ' needs a site';
+            }
 
-            return this.apiCall(method, url, params);
-        },
-        setDebug: function(value) {
-            config.debug = value;
-        },
-        setHost: function(value) {
-            config.host = value;
-        },
-        setPreview: function(value) {
-            config.preview = value;
+            var url = '//' + settings.host + '/v' + settings.version + this.template(endpoint.tpl, requestParams);
+
+            return {
+                method: endpoint.method || 'GET',
+                url: url,
+                params: helpers.buildOptions(endpoint.opt, requestParams)
+            };
         },
         template: function(template, data) {
             var key, reg;
 
             for (key in data) {
-                reg = new RegExp('{{' + key + '}}', 'g');
-                template = template.replace(reg, data[key]);
+                if (/Id/.test(key) || /query/.test(key) || /q/.test(key)) {
+                    reg = new RegExp('{{' + key + '}}', 'g');
+                    template = template.replace(reg, data[key]);
+                }
             }
 
             return template;
         }
     };
 
-    // generic endpoint constructor
-    var setEndpoint = self.setEndpoint = function(name, endpoint, override) {
-        if (!endpoint && !endpoint.tpl) {
-            throw moduleName + 'endpoint needs a template';
-        }
+    // expose helpers for testing
+    if (settings.debug) {
+        api.helpers = helpers;
+    }
 
-        if (!self[name] || override) {
-            self[name] = function(request, options) {
-                return helpers.processRequest(endpoint, request, options);
-            };
-            return true;
-        } else {
-            throw moduleName + 'endpoint ' + name + ' already exists';
-        }
-    };
-
-    // sugggestions
+    // suggestions
     setEndpoint('suggestAll', {
         tpl: suggestRoute + qParam + queryId
     });
@@ -204,7 +212,7 @@ module.exports = function ProductApi(settings) {
         opt: {
             limit: 40
         },
-        tpl: productRoute + qParam + queryId
+        tpl: productRoute
     });
 
     setEndpoint('browseCategory', {
@@ -296,10 +304,5 @@ module.exports = function ProductApi(settings) {
         tpl: facetRoute + id
     });
 
-    // expose helpers for testing
-    if (config.debug) {
-        self.helpers = helpers;
-    } else {
-        delete self.setEndpoint;
-    }
-};
+    return api;
+}();
