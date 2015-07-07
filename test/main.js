@@ -1,7 +1,7 @@
-var sinon = require('sinon');
-var assert = require('assert');
 var _ = require('underscore');
-var ProductApi = require('../src/ProductApi');
+var assert = require('assert');
+var sinon = require('sinon');
+var ProductApi = require('../ProductApi');
 
 
 // globals
