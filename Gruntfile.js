@@ -28,7 +28,7 @@ module.exports = function(grunt) {
         },
         watch: {
             files: [src, 'Gruntfile.js', 'test/*.js', '!**/node_modules/**/*'],
-            tasks: ['jshint', 'mochacli', 'build']
+            tasks: ['jshint', 'mochacli']
         },
         mochacli: {
             options: {

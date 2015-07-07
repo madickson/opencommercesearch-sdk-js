@@ -192,7 +192,7 @@ module.exports = function ProductApi(settings) {
 
     // products
     setEndpoint('findProducts', {
-        tpl: productRoute + productId + ''
+        tpl: productRoute + productId
     });
 
     setEndpoint('suggestProducts', {
