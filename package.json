@@ -2,7 +2,6 @@
   "name": "opencommercesearch-sdk-js",
   "version": "1.0.0",
   "description": "Javascript SDK for the OpenCommerceSearch Product API.",
-  "main": "index.js",
   "directories": {
     "src": "src",
     "test": "test"
@@ -31,5 +30,6 @@
     "type": "git",
     "url": "git://github.com/superchromat/ocs-sdk-js.git" 
   },
-  "private": true
+  "private": true,
+  "main": "src/ProductApi.js",
 }
